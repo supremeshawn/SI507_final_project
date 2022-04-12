@@ -1,0 +1,1 @@
+To run the application, run university _search.py using Python 3.
