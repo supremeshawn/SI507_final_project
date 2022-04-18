@@ -1,6 +1,9 @@
+from operator import itemgetter
 import requests
 import json
 import datetime
+import random
+from flask import Flask
 
 def request_data(country_code):
     base_url = "https://university-college-list-and-rankings.p.rapidapi.com/api/universities"
@@ -52,88 +55,199 @@ def save_cache(cache_dict, file_name):
     fw.close() 
 
 class University:
-    def __init__(self, name="No Name", ranking="No Ranking", geo_location="No Location"):
+    def __init__(self, name="No Name", ranking="No Ranking", address = "No address"):
             self.name = name
             self.ranking = ranking
-            self.geo_location = geo_location
+            self.address = address
+    def insert_address(self, address):
+        self.address = address
 
-class Node:
-    def __init__(self, item):
+
+class BSTNode:
+    def __init__(self, item=None):
         self.left = None
         self.right = None
         self.item = item
 
     #compare ranking value, then insert the object
     def insert(self, item):
-        if self.item:
-            if item.ranking < self.item.ranking:
-                if self.left is None:
-                    self.left = Node(item)
-                else:
-                    self.left.insert(item)
-            elif item.ranking > self.item.ranking:
-                if self.right is None:
-                    self.right = Node(item)
-                else:
-                    self.right.insert(item)
-            else:
-                self.item = item
+        if not self.item:
+            self.item = item
+            return
 
-# Print the tree
-    def PrintTree(self):
-        if self.left:
-            self.left.PrintTree()
-        print( self.data),
+        if self.item == item:
+            return
+
+        if item.ranking < self.item.ranking:
+            if self.left:
+                self.left.insert(item)
+                return
+            self.left = BSTNode(item)
+            return
+
         if self.right:
-            self.right.PrintTree()
+            self.right.insert(item)
+            return
+        self.right = BSTNode(item)
+
+    # Print the data in tree inorder
+    def inorder(self, item_list):
+        if self.left is not None:
+            self.left.inorder(item_list)
+        if self.item is not None:
+            item_list.append(self.item)
+        if self.right is not None:
+            self.right.inorder(item_list)
+        return item_list
+
+    def preorder(self, vals):
+        if self.item is not None:
+            vals.append(self.item.ranking)
+        if self.left is not None:
+            self.left.inorder(vals)
+        if self.right is not None:
+            self.right.inorder(vals)
+        return vals
+
+    def postorder(self, vals):
+        if self.left is not None:
+            self.left.inorder(vals)
+        if self.right is not None:
+            self.right.inorder(vals)
+        if self.item is not None:
+            vals.append(self.item.ranking)
+        return vals
+
+def retrive_address(university_name):
+    '''This function takes a university name and look up address information'''
+    api_key = "AIzaSyDxf3NYCxsgiKIVtkwgWxGF0kBqL6Sen4E"
+    serviceurl = "https://maps.googleapis.com/maps/api/geocode/json?"
+
+    parms = dict()
+    parms["address"] = university_name
+    parms['key'] = api_key
+    response = requests.request("GET", serviceurl, params=parms)
+    data = response.json()
+    if data['status'] == "OK":
+        address = data["results"][0]["formatted_address"]
+    else:
+        address = "No address info"
+    return address
 
 
-
-data = None
+rapidAPI_data = None
 
 #This block of code will ask the user for a country code to look up university rankings of a specific country
+print("Welcome to the University Search Tool.\n")
 COUNTRY_CODE = input("Please input the 2-digit country you would like to do your search in: ")
 CACHE_FILENAME = "cache_" + COUNTRY_CODE.lower() +".json"
-t1 = datetime.datetime.now().timestamp()
+temp_dict = dict()
+counter = 0
+
 try:
     DATA_CACHE = open_cache(CACHE_FILENAME)  #If there is a cache for specified country, use it
     print("\nPulling data from cache...\n")
 except:
     print("\nPulling data from the Web API...\n")  #Otherwise, pull data from the Web API and create cache for the specified country
+    print("This may take a moment... Please be patient.\n")
     while True:
         if COUNTRY_CODE == "exit":
             print("\nGoodbye!")
             exit()
-        data = request_data(COUNTRY_CODE)
-        if data != None:
+        rapidAPI_data = request_data(COUNTRY_CODE)
+        if rapidAPI_data != None:
+            for rank, u_name in rapidAPI_data.items():
+                address = retrive_address(u_name)
+                temp_dict[u_name] = [rank, address]
+                counter += 1
+                if counter % 100 == 0:
+                    print("100 inquiries retrieved. Retrieving more...")
             CACHE_FILENAME = "cache_" + COUNTRY_CODE +".json"
-            print("Saving data to cache...")
-            save_cache(data, CACHE_FILENAME)
-            DATA_CACHE = data
+            print("Saving data to cache...\n")
+            save_cache(temp_dict, CACHE_FILENAME)
+            DATA_CACHE = temp_dict
             break
         COUNTRY_CODE = input('No information found or invalid country code. Please try another 2-digit code or input "exit" to quit searching: ')
 
-t2 = datetime.datetime.now().timestamp()
+
 #print(DATA_CACHE) #Sanity check, comment out after confirm data can be accessed correctly
 #print("time used: ", (t2 - t1) * 1000, "ms") #time consumption check for checkpoint, comment out after use
 
+
+
 universities = []
-for key, value in DATA_CACHE.items():
+for item in DATA_CACHE.items():
+    name, temp_list = item
+    ranking = temp_list[0]
+    address = temp_list[1]
     try:
-        universities.append(University(value, int(key)))
+        universities.append(University(name, int(ranking), address))
     except:
         pass
 
+#shuffle the list to make the tree more balanced
+random.shuffle(universities)
+university_tree = BSTNode()
+
 for university in universities:
-    print(university.name, university.ranking)
+    university_tree.insert(university)
+#sort the universities in the order of rankings
+inorder_list = university_tree.inorder([])
+
+filter_min = input("Enter the limit of best ranking for your search: ")
+filter_max = input("Enter the limit of worst ranking for your search: ")
+try:
+    filter_min = int(filter_min)
+    filter_max = int(filter_max)
+except:
+    print("Invalid range. Will show all results.\n")
+    filter_min = 1
+    filter_max = 999999
+
+filtered_list = []
+for univeristy in inorder_list:
+    if univeristy.ranking >= filter_min and univeristy.ranking <= filter_max:
+        filtered_list.append(univeristy)
+
+app = Flask(__name__)
+
+@app.route('/')
+def index():     
+    html_static ='''
+    <style>
+    table, th, td {
+        border:1px solid black;
+    }
+    </style>
+    <h1>Here are the results of your search</h1>
+    <table style="width:100%">
+        <tr>
+            <th>University</th>
+            <th>Ranking</th>
+            <th>Address</th>
+        </tr>
+    '''
+    html_dynamic = ''
+    for item in filtered_list:
+        name = item.name
+        ranking = item.ranking
+        address = item.address
+        html_dynamic = html_dynamic + f'''
+        <tr>
+            <td>{name}</td>
+            <td>{ranking}</td>
+            <td>{address}</td>
+        </tr>
+            '''
+    end_table = '</table>'
+    return html_static + html_dynamic +end_table
+
+
+print('starting Flask app', app.name)  
+app.run(debug=True, use_reloader=False)
 
 
 
 
 
 
-
-#dumped_json_cache = json.dumps(data)
-#fh = open("university_cache.json", "w")
-#fh.write(dumped_json_cache)
-#fh.close()
