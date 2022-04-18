@@ -200,9 +200,16 @@ try:
     filter_min = int(filter_min)
     filter_max = int(filter_max)
 except:
-    print("Invalid range. Will show all results.\n")
+    print("Invalid range. Will include all results.\n")
     filter_min = 1
     filter_max = 999999
+
+user_resp = input("Would you like detailed addresses attachted? ")
+yes_list = ['yes', 'y', 'yup', 'yep' 'yeah', 'sure', 'of course', 'definitely', 'certainly']
+if user_resp in yes_list:
+    address_flag = True
+else:
+    address_flag = False
 
 filtered_list = []
 for univeristy in inorder_list:
@@ -213,32 +220,58 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():     
-    html_static ='''
-    <style>
-    table, th, td {
-        border:1px solid black;
-    }
-    </style>
-    <h1>Here are the results of your search</h1>
-    <table style="width:100%">
-        <tr>
-            <th>University</th>
-            <th>Ranking</th>
-            <th>Address</th>
-        </tr>
-    '''
-    html_dynamic = ''
-    for item in filtered_list:
-        name = item.name
-        ranking = item.ranking
-        address = item.address
-        html_dynamic = html_dynamic + f'''
-        <tr>
-            <td>{name}</td>
-            <td>{ranking}</td>
-            <td>{address}</td>
-        </tr>
-            '''
+    if address_flag is True:
+        html_static ='''
+        <style>
+        table, th, td {
+            border:1px solid black;
+        }
+        </style>
+        <h1>Here are the results of your search</h1>
+        <table style="width:100%">
+            <tr>
+                <th>Ranking</th>
+                <th>University</th>
+                <th>Address</th>
+            </tr>
+        '''
+        html_dynamic = ''
+        for item in filtered_list:
+            name = item.name
+            ranking = item.ranking
+            address = item.address
+            html_dynamic = html_dynamic + f'''
+            <tr>
+                <td>{ranking}</td>
+                <td>{name}</td>
+                <td>{address}</td>
+            </tr>
+                '''
+    else:
+        html_static ='''
+        <style>
+        table, th, td {
+            border:1px solid black;
+        }
+        </style>
+        <h1>Here are the results of your search</h1>
+        <table style="width:50%">
+            <tr>
+                <th>Ranking</th>
+                <th>Name</th>
+            </tr>
+        '''
+        html_dynamic = ''
+        for item in filtered_list:
+            name = item.name
+            ranking = item.ranking
+            address = item.address
+            html_dynamic = html_dynamic + f'''
+            <tr>
+                <td>{ranking}</td>
+                <td>{name}</td>
+            </tr>
+                '''
     end_table = '</table>'
     return html_static + html_dynamic +end_table
 
